@@ -1,0 +1,41 @@
+version: '3'
+services:
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./minio:/data
+    environment:
+      - "MINIO_ROOT_USER=minio"
+      - "MINIO_ROOT_PASSWORD=minio123"
+    command: server /data
+
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc admin update play;
+      /usr/bin/mc alias set myminio http://minio:9000 minio minio123;
+      /usr/bin/mc mb myminio/test-bucket;
+      /usr/bin/mc policy set public myminio/test-bucket;
+      exit 0;"
+
+  put-srv:
+    image: ubuntu:latest
+    depends_on:
+      - createbuckets
+    command:
+      /bin/sh -c "
+      cd /tmp;
+      apt-get update;
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends software-properties-common curl openssl;
+      mkdir sample;
+      touch sample/sample_file;
+      tar -czvf sample.tar.gz sample;
+      /tmp/mino-put.sh test-bucket /tmp/sample.tar.gz;
+      exit 0;"
+    volumes:
+      - ./minio/mino-put.sh:/tmp/mino-put.sh
